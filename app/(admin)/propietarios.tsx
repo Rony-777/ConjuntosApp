@@ -20,6 +20,7 @@ import { Card } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { PhoneButton } from "@/components/ui/PhoneButton";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
+import { confirm } from "@/lib/confirm";
 import {
   useDeletePropietario,
   usePropietarios,
@@ -45,19 +46,18 @@ export default function PropietariosScreen() {
     setCreating(false);
     setEditing(null);
   }
-  function confirmDelete(p: Propietario) {
-    Alert.alert("Eliminar propietario", `¿Eliminar a "${p.nombre}"?`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: () =>
-          remove.mutate(p.id, {
-            onError: (e: any) =>
-              Alert.alert("Error", e?.message ?? "No se pudo eliminar"),
-          }),
-      },
-    ]);
+  async function confirmDelete(p: Propietario) {
+    const ok = await confirm({
+      title: "Eliminar propietario",
+      message: `¿Eliminar a "${p.nombre}"?`,
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    remove.mutate(p.id, {
+      onError: (e: any) =>
+        Alert.alert("Error", e?.message ?? "No se pudo eliminar"),
+    });
   }
 
   return (

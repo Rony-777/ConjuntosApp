@@ -22,35 +22,48 @@ import { Picker } from "@/components/ui/Picker";
 import { PhoneButton } from "@/components/ui/PhoneButton";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
 import { useAuth } from "@/lib/auth-context";
-import { useProfiles, useUpdateProfile } from "@/lib/queries";
+import {
+  useCreateUser,
+  useProfiles,
+  useUpdateProfile,
+} from "@/lib/queries";
 import type { Profile, Rol } from "@/lib/types";
 
-const schema = z.object({
+// ---------- Schemas ----------
+
+const editSchema = z.object({
   nombre: z.string().min(1, "Requerido"),
   telefono: z.string().optional(),
   rol: z.enum(["admin", "vigilante"]),
 });
-type FormValues = z.infer<typeof schema>;
+type EditValues = z.infer<typeof editSchema>;
+
+const createSchema = z.object({
+  nombre: z.string().min(1, "Requerido"),
+  email: z.string().email("Email inválido"),
+  password: z
+    .string()
+    .min(8, "Mínimo 8 caracteres")
+    .max(72, "Máximo 72 caracteres"),
+  telefono: z.string().optional(),
+  rol: z.enum(["admin", "vigilante"]),
+});
+type CreateValues = z.infer<typeof createSchema>;
 
 const ROL_OPTIONS = [
-  { value: "admin", label: "Administrador" },
   { value: "vigilante", label: "Vigilante" },
+  { value: "admin", label: "Administrador" },
 ];
+
+// ---------- Screen ----------
 
 export default function UsuariosScreen() {
   const { profile: me } = useAuth();
   const { data, isLoading, error } = useProfiles();
   const update = useUpdateProfile();
+  const create = useCreateUser();
   const [editing, setEditing] = useState<Profile | null>(null);
-
-  function openInfoCreate() {
-    Alert.alert(
-      "Crear usuario nuevo",
-      "Por seguridad, los usuarios se crean desde el panel de Supabase " +
-        "(Authentication → Users). Una vez creados, aparecerán aquí y podrás " +
-        "asignarles el rol de Administrador o Vigilante."
-    );
-  }
+  const [creating, setCreating] = useState(false);
 
   return (
     <ScreenContainer>
@@ -121,13 +134,46 @@ export default function UsuariosScreen() {
       )}
 
       <Pressable
-        onPress={openInfoCreate}
+        onPress={() => setCreating(true)}
         className="absolute bottom-6 right-6 bg-brand-600 w-16 h-16 rounded-full items-center justify-center shadow-lg active:opacity-80"
       >
         <Text className="text-white text-3xl">+</Text>
       </Pressable>
 
-      <FormModal
+      <CreateModal
+        visible={creating}
+        onClose={() => setCreating(false)}
+        loading={create.isPending}
+        onSubmit={(v) =>
+          create.mutate(
+            {
+              email: v.email.trim().toLowerCase(),
+              password: v.password,
+              nombre: v.nombre.trim(),
+              telefono: v.telefono?.trim() || null,
+              rol: v.rol as Rol,
+            },
+            {
+              onSuccess: (res) => {
+                setCreating(false);
+                Alert.alert(
+                  "Usuario creado",
+                  `Cuenta creada para ${res.user.email} (${
+                    res.user.rol === "admin" ? "Administrador" : "Vigilante"
+                  }).\n\nComparte la contraseña con el usuario por un canal seguro. Recomiéndale cambiarla al iniciar sesión.`
+                );
+              },
+              onError: (e: any) =>
+                Alert.alert(
+                  "No se pudo crear el usuario",
+                  e?.message ?? "Error desconocido"
+                ),
+            }
+          )
+        }
+      />
+
+      <EditModal
         visible={editing !== null}
         editing={editing}
         currentUserId={me?.id ?? null}
@@ -154,7 +200,163 @@ export default function UsuariosScreen() {
   );
 }
 
-function FormModal({
+// ---------- Create modal ----------
+
+function CreateModal({
+  visible,
+  onClose,
+  onSubmit,
+  loading,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (v: CreateValues) => void;
+  loading: boolean;
+}) {
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CreateValues>({
+    resolver: zodResolver(createSchema),
+    defaultValues: {
+      nombre: "",
+      email: "",
+      password: "",
+      telefono: "",
+      rol: "vigilante",
+    },
+  });
+
+  function close() {
+    reset();
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        className="flex-1"
+      >
+        <Pressable className="flex-1 bg-black/40" onPress={close} />
+        <View className="bg-white rounded-t-2xl p-5 pb-8 max-h-[90%]">
+          <Text className="text-xl font-bold text-slate-900 mb-1">
+            Crear usuario
+          </Text>
+          <Text className="text-slate-500 text-sm mb-4">
+            La cuenta queda activa al instante. Comparte la contraseña por un
+            canal seguro.
+          </Text>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            <Controller
+              control={control}
+              name="nombre"
+              render={({ field: { onChange, value, onBlur } }) => (
+                <Field
+                  label="Nombre completo"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Juan Pérez"
+                  error={errors.nombre?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="email"
+              render={({ field: { onChange, value, onBlur } }) => (
+                <Field
+                  label="Email"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="vigilante@conjunto.local"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                  error={errors.email?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="password"
+              render={({ field: { onChange, value, onBlur } }) => (
+                <Field
+                  label="Contraseña temporal"
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Mín. 8 caracteres"
+                  secureTextEntry
+                  autoCapitalize="none"
+                  error={errors.password?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="telefono"
+              render={({ field: { onChange, value, onBlur } }) => (
+                <Field
+                  label="Teléfono (opcional)"
+                  value={value ?? ""}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="+573001234567"
+                  keyboardType="phone-pad"
+                  error={errors.telefono?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="rol"
+              render={({ field: { onChange, value } }) => (
+                <Picker
+                  label="Rol"
+                  value={value}
+                  onChange={(v) => v && onChange(v)}
+                  options={ROL_OPTIONS}
+                  error={errors.rol?.message}
+                />
+              )}
+            />
+            <Text className="text-slate-500 text-xs">
+              Recordatorio: solo crea administradores cuando sea estrictamente
+              necesario. Los administradores pueden modificar todo el sistema.
+            </Text>
+          </ScrollView>
+          <View className="flex-row gap-3 mt-3">
+            <View className="flex-1">
+              <Button
+                title="Cancelar"
+                variant="secondary"
+                onPress={close}
+                fullWidth
+              />
+            </View>
+            <View className="flex-1">
+              <Button
+                title="Crear"
+                onPress={handleSubmit(onSubmit)}
+                loading={loading}
+                fullWidth
+              />
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ---------- Edit modal ----------
+
+function EditModal({
   visible,
   editing,
   currentUserId,
@@ -166,7 +368,7 @@ function FormModal({
   editing: Profile | null;
   currentUserId: string | null;
   onClose: () => void;
-  onSubmit: (v: FormValues) => void;
+  onSubmit: (v: EditValues) => void;
   loading: boolean;
 }) {
   const {
@@ -174,8 +376,8 @@ function FormModal({
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
+  } = useForm<EditValues>({
+    resolver: zodResolver(editSchema),
     defaultValues: {
       nombre: editing?.nombre ?? "",
       telefono: editing?.telefono ?? "",

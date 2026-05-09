@@ -297,3 +297,43 @@ export function useUpdateProfile() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["profiles"] }),
   });
 }
+
+// Crea un usuario nuevo llamando a la Edge Function `create-user`.
+// La función vive en Supabase y verifica que el caller sea admin antes de
+// crear el usuario con la service_role. La service_role key NUNCA está en
+// el cliente.
+export function useCreateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      email: string;
+      password: string;
+      nombre: string;
+      telefono: string | null;
+      rol: Rol;
+    }) => {
+      const { data, error } = await supabase.functions.invoke("create-user", {
+        body: input,
+      });
+      if (error) {
+        // Intentar extraer el mensaje de error JSON del cuerpo de la respuesta.
+        let msg = error.message;
+        const ctx = (error as { context?: Response }).context;
+        if (ctx && typeof ctx.json === "function") {
+          try {
+            const parsed = await ctx.json();
+            if (parsed?.error) msg = parsed.error;
+          } catch {
+            /* ignore */
+          }
+        }
+        throw new Error(msg);
+      }
+      if (data && typeof data === "object" && "error" in data) {
+        throw new Error(String((data as { error: unknown }).error));
+      }
+      return data as { ok: true; user: { id: string; email: string; rol: Rol } };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["profiles"] }),
+  });
+}

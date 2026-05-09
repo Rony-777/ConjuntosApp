@@ -1,10 +1,11 @@
-import { Alert, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
 import { useAuth } from "@/lib/auth-context";
+import { confirm } from "@/lib/confirm";
 
 const ITEMS: { title: string; emoji: string; route: string; subtitle: string }[] = [
   { title: "Torres", emoji: "🏢", route: "/(admin)/torres", subtitle: "Gestionar torres del conjunto" },
@@ -18,11 +19,14 @@ export default function AdminDashboard() {
   const router = useRouter();
   const { profile, signOut } = useAuth();
 
-  function logout() {
-    Alert.alert("Cerrar sesión", "¿Seguro que quieres salir?", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Salir", style: "destructive", onPress: () => signOut() },
-    ]);
+  async function logout() {
+    const ok = await confirm({
+      title: "Cerrar sesión",
+      message: "¿Seguro que quieres salir?",
+      confirmText: "Salir",
+      destructive: true,
+    });
+    if (ok) await signOut();
   }
 
   return (

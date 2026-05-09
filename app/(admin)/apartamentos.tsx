@@ -21,6 +21,7 @@ import { Field } from "@/components/ui/Field";
 import { Picker } from "@/components/ui/Picker";
 import { PhoneButton } from "@/components/ui/PhoneButton";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
+import { confirm } from "@/lib/confirm";
 import {
   useApartamentos,
   useDeleteApartamento,
@@ -65,23 +66,18 @@ export default function ApartamentosScreen() {
     setCreating(false);
     setEditing(null);
   }
-  function confirmDelete(a: ApartamentoConRelaciones) {
-    Alert.alert(
-      "Eliminar apartamento",
-      `¿Eliminar ${a.torre?.nombre ?? ""} - ${a.numero}? Esto también eliminará a sus inquilinos.`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          style: "destructive",
-          onPress: () =>
-            remove.mutate(a.id, {
-              onError: (e: any) =>
-                Alert.alert("Error", e?.message ?? "No se pudo eliminar"),
-            }),
-        },
-      ]
-    );
+  async function confirmDelete(a: ApartamentoConRelaciones) {
+    const ok = await confirm({
+      title: "Eliminar apartamento",
+      message: `¿Eliminar ${a.torre?.nombre ?? ""} - ${a.numero}? Esto también eliminará a sus inquilinos.`,
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    remove.mutate(a.id, {
+      onError: (e: any) =>
+        Alert.alert("Error", e?.message ?? "No se pudo eliminar"),
+    });
   }
 
   const isLoading = aptos.isLoading || torres.isLoading || propietarios.isLoading;

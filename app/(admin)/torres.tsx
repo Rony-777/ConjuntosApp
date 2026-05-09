@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
+import { confirm } from "@/lib/confirm";
 import {
   useDeleteTorre,
   useTorres,
@@ -47,19 +48,18 @@ export default function TorresScreen() {
     setCreating(false);
     setEditing(null);
   }
-  function confirmDelete(t: Torre) {
-    Alert.alert("Eliminar torre", `¿Eliminar "${t.nombre}"?`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: () =>
-          remove.mutate(t.id, {
-            onError: (e: any) =>
-              Alert.alert("Error", e?.message ?? "No se pudo eliminar"),
-          }),
-      },
-    ]);
+  async function confirmDelete(t: Torre) {
+    const ok = await confirm({
+      title: "Eliminar torre",
+      message: `¿Eliminar "${t.nombre}"?`,
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    remove.mutate(t.id, {
+      onError: (e: any) =>
+        Alert.alert("Error", e?.message ?? "No se pudo eliminar"),
+    });
   }
 
   return (

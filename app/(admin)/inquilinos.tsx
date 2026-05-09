@@ -21,6 +21,7 @@ import { Field } from "@/components/ui/Field";
 import { Picker } from "@/components/ui/Picker";
 import { PhoneButton } from "@/components/ui/PhoneButton";
 import { ScreenContainer } from "@/components/ui/ScreenContainer";
+import { confirm } from "@/lib/confirm";
 import {
   useApartamentos,
   useDeleteInquilino,
@@ -61,19 +62,18 @@ export default function InquilinosScreen() {
     setCreating(false);
     setEditing(null);
   }
-  function confirmDelete(i: InquilinoConApartamento) {
-    Alert.alert("Eliminar inquilino", `¿Eliminar a "${i.nombre}"?`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: () =>
-          remove.mutate(i.id, {
-            onError: (e: any) =>
-              Alert.alert("Error", e?.message ?? "No se pudo eliminar"),
-          }),
-      },
-    ]);
+  async function confirmDelete(i: InquilinoConApartamento) {
+    const ok = await confirm({
+      title: "Eliminar inquilino",
+      message: `¿Eliminar a "${i.nombre}"?`,
+      confirmText: "Eliminar",
+      destructive: true,
+    });
+    if (!ok) return;
+    remove.mutate(i.id, {
+      onError: (e: any) =>
+        Alert.alert("Error", e?.message ?? "No se pudo eliminar"),
+    });
   }
 
   const isLoading = inq.isLoading || aptos.isLoading;
